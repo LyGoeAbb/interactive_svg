@@ -1,0 +1,69 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+
+# Editor/project metadata
+.idea/
+*.iml
+*.iws
+.vscode/            # uncomment if you want to track VS Code config
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+doc/api/
+lib/generated_plugin_registrant.dart
+.env*
+
+# Dependency lock (libraries typically should not commit pubspec.lock)
+pubspec.lock
+
+# Generated JS from dart2js
+*.dart.js
+*.info.json
+*.js
+*.js_
+*.js.deps
+*.js.map
+
+# Android
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/key.properties
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/**/build/
+
+# iOS / Xcode
+**/ios/**/DerivedData/
+**/ios/**/Pods/
+**/ios/**/xcuserdata/
+**/ios/**/Flutter/Generated.xcconfig
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/App.framework
+
+# mac / other
+hs_err_pid*
+
+# Keystore and signing files
+*.jks
+*.keystore
+
+# Temporary / tooling
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Optional: keep pubspec.yaml tracked
+!/pubspec.yaml
