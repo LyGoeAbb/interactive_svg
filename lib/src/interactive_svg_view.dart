@@ -325,6 +325,8 @@ class _InteractiveSvgViewState extends State<InteractiveSvgView> {
                   key: _sizedKey,
                   lazyBounds: _boundsFactory,
                   background: data[null],
+                  alignment: Alignment.topLeft,
+                  fit: BoxFit.contain,
                   regions: data.entries
                       .where(
                         (element) =>

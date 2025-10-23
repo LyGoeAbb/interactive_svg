@@ -482,8 +482,8 @@ Path scaleBounds(
     }
 
     final scaleMatrix = Matrix4.identity()
-      ..translate(translateX, translateY)
-      ..scale(scaleX, scaleY, 1);
+      ..translateByDouble(translateX, translateY, 0 , 0)
+      ..scaleByDouble(scaleX, scaleY, 1, 0);
     return path.transform(scaleMatrix.storage);
   }
   return path;
