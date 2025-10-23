@@ -8,19 +8,18 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 
 import '../../interactive_svg.dart';
-import 'svg_regions_details.dart';
 
 /// Builder used to wrap or decorate a parsed SVG region.
 ///
 /// - `context`: the build context.
-/// - `view`: the Widget that renders the SVG fragment for the region (already configured with fit/alignment).
+/// - `builder`: the Widget that renders the SVG fragment for the region (already configured with fit/alignment).
 /// - `details`: metadata about the region (selector and computed bounds). Note that `details.bounds`
 ///   may be null on the initial build because bounds are computed after layout; when bounds become
 ///   available, use `shouldRebuildWhenBoundsCalculated` on the parent to request a rebuild so the
 ///   builder receives updated `details`.
 typedef InteractiveBuilder = Widget Function(
   BuildContext context,
-  Widget view,
+  Widget Function() builder,
   SvgRegionsDetails details,
 );
 

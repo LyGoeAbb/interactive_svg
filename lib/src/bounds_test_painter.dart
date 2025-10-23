@@ -21,13 +21,22 @@ class BoundsTestPainter extends CustomPainter {
     super.repaint,
     required this.boundsData,
     this.color = const Color(0x3300FF00),
-  });
+    Color? visibleBoundsColor,
+    Color? boundsColor,
+  })  : visibleBoundsColor = visibleBoundsColor ?? color,
+        boundsColor = boundsColor ?? color;
 
   /// The map of region labels to their corresponding [Path]s.
   final BoundsList boundsData;
 
   /// The color used to draw the regions.
   final Color color;
+
+  /// The color used to draw the stroke of `path.visibleBounds`.
+  final Color visibleBoundsColor;
+
+  /// The color used to draw the stroke of `path.getBounds`.
+  final Color boundsColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -36,14 +45,20 @@ class BoundsTestPainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 1.0;
 
+    final paintVisibleBounds = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = visibleBoundsColor
+      ..strokeWidth = 1.0;
+
     final paintBounds = Paint()
       ..style = PaintingStyle.stroke
-      ..color = color
+      ..color = boundsColor
       ..strokeWidth = 1.0;
 
     for (final bounds in boundsData.values) {
       canvas.drawPath(bounds.path, paint);
-      canvas.drawRect(bounds.bounds, paintBounds);
+      canvas.drawRect(bounds.getVisibleBounds(), paintVisibleBounds);
+      canvas.drawRect(bounds.path.getBounds(), paintBounds);
     }
   }
 

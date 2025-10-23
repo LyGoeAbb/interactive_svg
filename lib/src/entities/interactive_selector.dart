@@ -14,7 +14,33 @@ import 'package:xml/xml.dart';
 /// - [touchable]: Regions intended to participate in user interaction. When set to
 ///   [touchable], bounds will be computed (when possible) and the region will be
 ///   considered for hit testing (e.g., taps).
-enum InteractiveType { viewOnly, touchable }
+enum InteractiveType {
+  /// viewOnly:
+  /// - Use for elements that are separated into their own layer for visual
+  ///   processing (e.g., show/hide, opacity changes) but where the system does
+  ///   not need to know their position or size.
+  /// - These elements are not considered for hit-testing; bounds are not computed.
+  /// - Examples: purely decorative overlays, visual-only guides.
+  viewOnly,
+
+  /// boundsOnly:
+  /// - Use for elements that are separated into their own layer like `viewOnly`,
+  ///   but where the system must know their position and size (bounds).
+  /// - Bounds will be computed so the element's position/size can be used for
+  ///   tasks such as placing markers, computing replacements, aligning overlays, etc.
+  /// - These elements are not returned for touch callbacks (they are not touchable).
+  /// - Examples: elements used to determine anchor points or layout reference boxes.
+  boundsOnly,
+
+  /// touchable:
+  /// - Use for elements that are separated into their own layer and that also
+  ///   have meaningful bounds (position and size) like `boundsOnly`.
+  /// - Additionally, these elements participate in user interactions: they are
+  ///   considered during hit-testing and will generate tap events.
+  /// - Only elements defined as `touchable` will be returned from onTap handlers.
+  /// - Examples: buttons, interactive icons, selectable areas that respond to taps.
+  touchable,
+}
 
 /// An abstract representation of a selector used to identify SVG elements or groups.
 ///

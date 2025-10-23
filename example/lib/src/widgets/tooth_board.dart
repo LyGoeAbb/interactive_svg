@@ -109,7 +109,7 @@ class _ToothBoardState extends State<ToothBoard> {
             this.boundsData = boundsData;
           });
         },
-        interactiveBuilder: (context, view, details) => Visibility(
+        interactiveBuilder: (context, builder, details) => Visibility(
           visible: isVisible(details.selector),
           child: () {
             if (details.selector is TeethInteractiveSelector) {
@@ -118,13 +118,13 @@ class _ToothBoardState extends State<ToothBoard> {
                 return CustomPaint(
                   foregroundPainter: LabelPainter(
                     label: s.originId,
-                    bounds: details.bounds!.bounds,
+                    bounds: details.bounds!.getVisibleBounds(),
                   ),
-                  child: view,
+                  child: builder(),
                 );
               }
             }
-            return view;
+            return builder();
           }(),
         ),
         markerBuilder: (context) {
@@ -132,7 +132,10 @@ class _ToothBoardState extends State<ToothBoard> {
             return [
               Positioned.fill(
                 child: CustomPaint(
-                  foregroundPainter: BoundsTestPainter(boundsData: boundsData!),
+                  foregroundPainter: BoundsTestPainter(
+                    boundsData: boundsData!,
+                    boundsColor: Colors.red,
+                  ),
                 ),
               ),
             ];

@@ -38,7 +38,14 @@ class SvgBounds {
   /// This is computed from `path.visibleBounds` and may be an approximation
   /// (sampling-based). It is useful for fast bounding-box checks before more
   /// expensive path containment tests.
-  Rect get bounds => path.visibleBounds;
+  Rect getVisibleBounds() => path.visibleBounds;
+
+  /// Axis-aligned bounding rectangle that encloses the entire [path].
+  ///
+  /// This is computed from `path.getBounds()` and may include empty
+  /// areas if the path has holes or non-visible segments.
+  /// Use [getVisibleBounds] for a tighter fit around visible content.
+  Rect getBounds() => path.getBounds();
 
   /// Returns true when [point] is inside the region represented by this path.
   ///

@@ -1,0 +1,490 @@
+/*
+ Created by sonnts996 on 19/10/25.
+ Copyright (c) 2025 . All rights reserved.
+*/
+
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:path_drawing/path_drawing.dart';
+import 'package:xml/xml.dart';
+
+/// Parses a single SVG group/element and composes a union [Path] suitable for hit-testing,
+/// along with its bounding [Rect]. Ensures bounds match the frame size if provided.
+///
+/// The method:
+/// - Collects drawable elements (<path>, <rect>, <circle>, <ellipse>, <polygon>, <polyline>, <line>, <use>),
+///   excluding those inside <mask>.
+/// - Applies clip-path and mask on individual elements (inner) via collectDrawablePaths.
+/// - Handles transforms (matrix(...)) found on the element or its parents.
+/// - Scales/translates the final path according to provided [viewBox], [size], [fit], and [alignment].
+/// - Overrides viewBox to match frameSize if provided, ensuring bounds match Figma frame.
+///
+/// Returns a map with 'path' (union Path, or null if no usable path) and 'bounds' (Rect, or null if no path).
+Path? parseBoundsFromSvg(
+  XmlNode data, {
+  Size? size,
+  Rect? viewBox,
+  Size? frameSize,
+  BoxFit fit = BoxFit.none,
+  Alignment alignment = Alignment.topLeft,
+}) {
+  // Obtain viewBox from the SVG root if not provided
+  if (viewBox == null) {
+    final svgNode = data.document?.rootElement;
+    if (svgNode != null) {
+      final vbStr = svgNode.getAttribute('viewBox');
+      if (vbStr != null) {
+        final vbValues =
+            vbStr.split(RegExp(r'\s+|,')).map(double.tryParse).toList();
+        if (vbValues.length == 4) {
+          viewBox = Rect.fromLTWH(
+            vbValues[0]!,
+            vbValues[1]!,
+            vbValues[2]!,
+            vbValues[3]!,
+          );
+        }
+      }
+      viewBox ??= Rect.fromLTWH(
+        0,
+        0,
+        double.parse(svgNode.getAttribute('width') ?? '0'),
+        double.parse(svgNode.getAttribute('height') ?? '0'),
+      );
+    }
+  }
+
+  // Override viewBox when frameSize is provided
+  if (frameSize != null) {
+    viewBox = Rect.fromLTWH(0, 0, frameSize.width, frameSize.height);
+  }
+
+  final subpaths = collectDrawablePaths(data);
+  Matrix4? transform;
+  XmlNode? current = data;
+  while (current != null) {
+    final transformStr = current.getAttribute('transform');
+    if (transformStr != null) {
+      transform = parseTransform(transformStr);
+      break;
+    }
+    current = current.parentElement;
+  }
+
+  if (subpaths.isNotEmpty || frameSize != null) {
+    var combinedUnion = Path();
+    for (final p in subpaths) {
+      combinedUnion.addPath(p, Offset.zero);
+    }
+
+    // Add Path for the frame rectangle if frameSize is provided
+    if (frameSize != null) {
+      final framePath = Path()
+        ..addRect(Rect.fromLTWH(0, 0, frameSize.width, frameSize.height));
+      combinedUnion =
+          Path.combine(PathOperation.union, combinedUnion, framePath);
+    }
+
+    // Handle stroke if present
+    final strokeWidth =
+        double.tryParse(data.getAttribute('stroke-width') ?? '0') ?? 0;
+    if (strokeWidth > 0) {
+      final strokedPath = Path();
+      strokedPath.addPath(combinedUnion, Offset.zero);
+      combinedUnion =
+          Path.combine(PathOperation.union, combinedUnion, strokedPath);
+    }
+
+    if (transform != null) {
+      combinedUnion = combinedUnion.transform(transform.storage);
+    }
+
+    final scaledPath = scaleBounds(
+      combinedUnion,
+      viewBox: viewBox,
+      size: size ??
+          (frameSize != null ? Size(frameSize.width, frameSize.height) : null),
+      fit: fit,
+      alignment: alignment,
+    );
+
+    return scaledPath;
+  }
+
+  return null;
+}
+
+/// Collects all drawable paths from an [XmlNode] recursively, applying inner clip-path and mask.
+///
+/// This traverses supported shape elements and groups, ignoring elements with display="none"
+/// or visibility="hidden", and skipping contents of <mask> when [skipMasks] is true.
+///
+/// Returns a list of [Path] objects extracted from the node and its children.
+List<Path> collectDrawablePaths(XmlNode node, {bool skipMasks = true}) {
+  final paths = <Path>[];
+  if (node is! XmlElement) return paths;
+
+  final element = node;
+  final tag = element.name.local;
+
+  // Skip if display="none" or visibility="hidden"
+  if (element.getAttribute('display') == 'none' ||
+      element.getAttribute('visibility') == 'hidden') {
+    return paths;
+  }
+
+  // Skip invisible rect
+  if (tag == 'rect' &&
+      element.getAttribute('opacity') == '0' &&
+      element.getAttribute('fill') == 'none' &&
+      element.getAttribute('stroke') == 'none') {
+    return paths;
+  }
+
+  // Skip contents inside <mask> when skipMasks=true
+  if (skipMasks && tag == 'mask') return paths;
+
+  Path? shapePath;
+  try {
+    if (tag == 'path') {
+      final d = element.getAttribute('d') ?? '';
+      if (d.isNotEmpty) shapePath = parseSvgPathData(d);
+    } else if (tag == 'rect') {
+      shapePath = parseRect(element);
+    } else if (tag == 'circle') {
+      shapePath = parseCircle(element);
+    } else if (tag == 'ellipse') {
+      shapePath = parseEllipse(element);
+    } else if (tag == 'polygon') {
+      shapePath = parsePolygon(element);
+    } else if (tag == 'polyline') {
+      shapePath = parsePolyline(element);
+    } else if (tag == 'line') {
+      shapePath = parseLine(element);
+    } else if (tag == 'use') {
+      shapePath = parseUse(element);
+    } else if (tag == 'g') {
+      // Iterate children of <g> without creating a direct shapePath
+    } else {
+      return paths; // Skip tags that are not shapes
+    }
+
+    // Apply inner clip-path and mask if present
+    if (shapePath != null) {
+      final localTransform = parseTransform(element.getAttribute('transform'));
+      if (localTransform != null) {
+        shapePath = shapePath.transform(localTransform.storage);
+      }
+
+      // Check clip-path on element
+      final clipPathUrl = element
+          .getAttribute('clip-path')
+          ?.replaceFirst('url(#', '')
+          .replaceFirst(')', '');
+      if (clipPathUrl != null) {
+        final clipNode =
+            element.document?.findAllElements('clipPath').firstWhereOrNull(
+                  (e) => e.getAttribute('id') == clipPathUrl,
+                );
+        if (clipNode != null) {
+          final clipSubpaths = collectDrawablePaths(clipNode, skipMasks: false);
+          if (clipSubpaths.isNotEmpty) {
+            final clipCombined = Path();
+            for (final p in clipSubpaths) {
+              clipCombined.addPath(p, Offset.zero);
+            }
+            final clipRule = clipNode.getAttribute('clip-rule') ?? 'nonzero';
+            clipCombined.fillType = clipRule == 'evenodd'
+                ? PathFillType.evenOdd
+                : PathFillType.nonZero;
+            shapePath =
+                Path.combine(PathOperation.intersect, shapePath, clipCombined);
+          }
+        }
+      }
+
+      // Check mask on element
+      final maskUrl = element
+          .getAttribute('mask')
+          ?.replaceFirst('url(#', '')
+          .replaceFirst(')', '');
+      if (maskUrl != null) {
+        final maskNode =
+            element.document?.findAllElements('mask').firstWhereOrNull(
+                  (e) => e.getAttribute('id') == maskUrl,
+                );
+        if (maskNode != null) {
+          final maskSubpaths = collectDrawablePaths(maskNode, skipMasks: false);
+          if (maskSubpaths.isNotEmpty) {
+            final maskCombined = Path();
+            for (final p in maskSubpaths) {
+              maskCombined.addPath(p, Offset.zero);
+            }
+            shapePath =
+                Path.combine(PathOperation.intersect, shapePath, maskCombined);
+          }
+        }
+      }
+
+      paths.add(shapePath);
+    }
+  } catch (e) {
+    debugPrint('Invalid $tag data: $e');
+  }
+
+  // Recurse into children
+  for (final child in element.children) {
+    paths.addAll(collectDrawablePaths(child, skipMasks: skipMasks));
+  }
+
+  return paths;
+}
+
+/// Parses a transform attribute string into a [Matrix4].
+///
+/// Supports matrix(a,b,c,d,tx,ty) format. Returns null if input is null or unsupported.
+Matrix4? parseTransform(String? transformStr) {
+  if (transformStr == null || transformStr.isEmpty) return null;
+  try {
+    if (transformStr.startsWith('matrix(')) {
+      final values = transformStr
+          .replaceFirst('matrix(', '')
+          .replaceFirst(')', '')
+          .split(RegExp(r'\s+|,'))
+          .map((s) => double.tryParse(s) ?? 0.0)
+          .toList();
+      if (values.length >= 6) {
+        return Matrix4(
+          values[0],
+          values[1],
+          0,
+          0,
+          values[2],
+          values[3],
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          values[4],
+          values[5],
+          0,
+          1,
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('Invalid transform format: $transformStr');
+  }
+  return null;
+}
+
+/// Parse a <rect> element into a [Path].
+Path parseRect(XmlNode e) => Path()
+  ..addRect(
+    Rect.fromLTWH(
+      double.tryParse(e.getAttribute('x') ?? '0') ?? 0,
+      double.tryParse(e.getAttribute('y') ?? '0') ?? 0,
+      double.tryParse(e.getAttribute('width') ?? '0') ?? 0,
+      double.tryParse(e.getAttribute('height') ?? '0') ?? 0,
+    ),
+  );
+
+/// Parse a <circle> element into a [Path].
+Path parseCircle(XmlNode e) {
+  final center = Offset(
+    double.tryParse(e.getAttribute('cx') ?? '0') ?? 0,
+    double.tryParse(e.getAttribute('cy') ?? '0') ?? 0,
+  );
+  final radius = double.tryParse(e.getAttribute('r') ?? '0') ?? 0;
+  return Path()..addOval(Rect.fromCircle(center: center, radius: radius));
+}
+
+/// Parse an <ellipse> element into a [Path].
+Path parseEllipse(XmlNode e) {
+  final center = Offset(
+    double.tryParse(e.getAttribute('cx') ?? '0') ?? 0,
+    double.tryParse(e.getAttribute('cy') ?? '0') ?? 0,
+  );
+  final rx = double.tryParse(e.getAttribute('rx') ?? '0') ?? 0;
+  final ry = double.tryParse(e.getAttribute('ry') ?? '0') ?? 0;
+  return Path()
+    ..addOval(Rect.fromCenter(center: center, width: rx * 2, height: ry * 2));
+}
+
+/// Parse a <polygon> element into a closed [Path].
+Path parsePolygon(XmlNode e) {
+  final pointsStr = e.getAttribute('points') ?? '';
+  final points = pointsStr
+      .split(RegExp(r'\s+|,'))
+      .map(double.tryParse)
+      .where((e) => e != null)
+      .cast<double>()
+      .toList();
+  if (points.length < 4 || points.length % 2 != 0) return Path();
+  final path = Path();
+  for (var i = 0; i < points.length; i += 2) {
+    if (i == 0) {
+      path.moveTo(points[i], points[i + 1]);
+    } else {
+      path.lineTo(points[i], points[i + 1]);
+    }
+  }
+  path.close();
+  return path;
+}
+
+/// Parse a <polyline> element into a [Path] (open).
+Path parsePolyline(XmlNode e) {
+  final pointsStr = e.getAttribute('points') ?? '';
+  final points = pointsStr
+      .split(RegExp(r'\s+|,'))
+      .map(double.tryParse)
+      .where((e) => e != null)
+      .cast<double>()
+      .toList();
+  if (points.length < 4 || points.length % 2 != 0) return Path();
+  final path = Path();
+  for (var i = 0; i < points.length; i += 2) {
+    if (i == 0) {
+      path.moveTo(points[i], points[i + 1]);
+    } else {
+      path.lineTo(points[i], points[i + 1]);
+    }
+  }
+  return path;
+}
+
+/// Parse a <line> element into a [Path].
+Path parseLine(XmlNode e) {
+  final x1 = double.tryParse(e.getAttribute('x1') ?? '0') ?? 0;
+  final y1 = double.tryParse(e.getAttribute('y1') ?? '0') ?? 0;
+  final x2 = double.tryParse(e.getAttribute('x2') ?? '0') ?? 0;
+  final y2 = double.tryParse(e.getAttribute('y2') ?? '0') ?? 0;
+  final path = Path()
+    ..moveTo(x1, y1)
+    ..lineTo(x2, y2);
+  return path;
+}
+
+/// Parse a <use> element by resolving its referenced element and combining its paths.
+///
+/// Returns a combined [Path] of referenced content, or null if reference not found.
+Path? parseUse(XmlElement e) {
+  final href = e.getAttribute('href')?.replaceFirst('#', '') ??
+      e.getAttribute('xlink:href')?.replaceFirst('#', '') ??
+      '';
+  if (href.isEmpty) return null;
+  final referenced = e.document?.findAllElements('*').firstWhereOrNull(
+        (el) => el.getAttribute('id') == href,
+      );
+  if (referenced != null) {
+    final subpaths = collectDrawablePaths(referenced);
+    if (subpaths.isNotEmpty) {
+      final combined = Path();
+      for (final p in subpaths) {
+        combined.addPath(p, Offset.zero);
+      }
+      return combined;
+    }
+  }
+  return null;
+}
+
+/// Scales and translates [path] from [viewBox] coordinate space to [size] using [fit] and [alignment].
+///
+/// If [size] or [viewBox] is null, returns the original path.
+Path scaleBounds(
+  Path path, {
+  Rect? viewBox,
+  Size? size,
+  BoxFit fit = BoxFit.none,
+  Alignment alignment = Alignment.topLeft,
+}) {
+  if (size != null && viewBox != null) {
+    var scaleX = size.width / viewBox.width;
+    var scaleY = size.height / viewBox.height;
+    var translateX = -viewBox.left;
+    var translateY = -viewBox.top;
+
+    switch (fit) {
+      case BoxFit.contain:
+        final scale = scaleX < scaleY ? scaleX : scaleY;
+        scaleX = scale;
+        scaleY = scale;
+        translateX += (size.width - viewBox.width * scale) *
+            (alignment.x + 1) /
+            2 /
+            scaleX;
+        translateY += (size.height - viewBox.height * scale) *
+            (alignment.y + 1) /
+            2 /
+            scaleY;
+      case BoxFit.cover:
+        final scale = scaleX > scaleY ? scaleX : scaleY;
+        scaleX = scale;
+        scaleY = scale;
+        translateX += (size.width - viewBox.width * scale) *
+            (alignment.x + 1) /
+            2 /
+            scaleX;
+        translateY += (size.height - viewBox.height * scale) *
+            (alignment.y + 1) /
+            2 /
+            scaleY;
+      case BoxFit.fitWidth:
+        scaleY = scaleX;
+        translateX += (size.width - viewBox.width * scaleX) *
+            (alignment.x + 1) /
+            2 /
+            scaleX;
+        translateY += (size.height - viewBox.height * scaleX) *
+            (alignment.y + 1) /
+            2 /
+            scaleY;
+      case BoxFit.fitHeight:
+        scaleX = scaleY;
+        translateX += (size.width - viewBox.width * scaleY) *
+            (alignment.x + 1) /
+            2 /
+            scaleX;
+        translateY += (size.height - viewBox.height * scaleY) *
+            (alignment.y + 1) /
+            2 /
+            scaleY;
+      case BoxFit.fill:
+        translateX += (size.width - viewBox.width * scaleX) *
+            (alignment.x + 1) /
+            2 /
+            scaleX;
+        translateY += (size.height - viewBox.height * scaleY) *
+            (alignment.y + 1) /
+            2 /
+            scaleY;
+      case BoxFit.none:
+        scaleX = 1.0;
+        scaleY = 1.0;
+        translateX += (size.width - viewBox.width) * (alignment.x + 1) / 2;
+        translateY += (size.height - viewBox.height) * (alignment.y + 1) / 2;
+      case BoxFit.scaleDown:
+        final scale = scaleX < scaleY ? scaleX : scaleY;
+        scaleX = scale < 1.0 ? scale : 1.0;
+        scaleY = scale < 1.0 ? scale : 1.0;
+        translateX += (size.width - viewBox.width * scaleX) *
+            (alignment.x + 1) /
+            2 /
+            scaleX;
+        translateY += (size.height - viewBox.height * scaleY) *
+            (alignment.y + 1) /
+            2 /
+            scaleY;
+    }
+
+    final scaleMatrix = Matrix4.identity()
+      ..translate(translateX, translateY)
+      ..scale(scaleX, scaleY, 1);
+    return path.transform(scaleMatrix.storage);
+  }
+  return path;
+}

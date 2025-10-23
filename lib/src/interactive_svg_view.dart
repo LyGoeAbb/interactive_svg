@@ -9,7 +9,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/svg.dart';
 
 import '../interactive_svg.dart';
-import 'entities/svg_regions_details.dart';
 import 'interactive_parser.dart';
 import 'lazy_bound_factory.dart';
 
@@ -68,6 +67,7 @@ class InteractiveSvgView extends StatefulWidget {
     this.errorBuilder,
     this.placeholderBuilder,
     this.onTap,
+    this.onTapOutside,
     this.fit = BoxFit.contain,
     this.alignment = Alignment.topLeft,
     this.markerBuilder,
@@ -89,6 +89,7 @@ class InteractiveSvgView extends StatefulWidget {
     WidgetBuilder? placeholderBuilder,
     InteractiveBuilder? interactiveBuilder,
     void Function(InteractiveSelector selector)? onTap,
+    void Function()? onTapOutside,
     BoxFit fit = BoxFit.contain,
     Alignment alignment = Alignment.topLeft,
     MarkerBuilder? markerBuilder,
@@ -105,6 +106,7 @@ class InteractiveSvgView extends StatefulWidget {
         placeholderBuilder: placeholderBuilder,
         interactiveBuilder: interactiveBuilder,
         onTap: onTap,
+        onTapOutside: onTapOutside,
         fit: fit,
         alignment: alignment,
         markerBuilder: markerBuilder,
@@ -126,6 +128,9 @@ class InteractiveSvgView extends StatefulWidget {
 
   /// Optional callback invoked when a touchable [InteractiveSelector] is tapped.
   final void Function(InteractiveSelector selector)? onTap;
+
+  /// Optional callback invoked when a tap occurs outside any touchable region.
+  final void Function()? onTapOutside;
 
   /// How the SVG content should be inscribed into the available space.
   final BoxFit fit;
@@ -336,6 +341,7 @@ class _InteractiveSvgViewState extends State<InteractiveSvgView> {
                       widget.onTap != null,
                   maskerBuilder: widget.markerBuilder,
                   onTap: widget.onTap?.call,
+                  onTapOutside: widget.onTapOutside,
                 ),
               );
             },
@@ -352,6 +358,7 @@ class _SvgView extends StatefulWidget {
     this.fit = BoxFit.contain,
     this.interactiveBuilder,
     this.onTap,
+    this.onTapOutside,
     required this.lazyBounds,
     this.shouldUseBounds = false,
     this.maskerBuilder,
@@ -374,6 +381,9 @@ class _SvgView extends StatefulWidget {
 
   /// Optional onTap handler invoked when a touchable region is tapped.
   final void Function(InteractiveSelector selector)? onTap;
+
+  /// Optional onTapOutside handler invoked when a tap occurs outside any touchable region.
+  final void Function()? onTapOutside;
 
   /// Lazy bounds factory used to compute and provide bounds for touchable regions.
   final BoundsFactory lazyBounds;
@@ -508,7 +518,7 @@ class _SvgViewState extends State<_SvgView> {
                 if (widget.interactiveBuilder != null) {
                   return widget.interactiveBuilder!(
                     context,
-                    _buildSvg(selector.id, e.svg),
+                    () => _buildSvg(selector.id, e.svg),
                     SvgRegionsDetails(
                       selector: selector,
                       bounds: widget.lazyBounds.data[selector],
@@ -536,7 +546,7 @@ class _SvgViewState extends State<_SvgView> {
   /// The function iterates regions in reverse order (topmost rendered region first),
   /// checks whether computed bounds contain the touch position and, if so, calls `widget.onTap`.
   void onTap(TapUpDetails details) {
-    if (widget.onTap == null) return;
+    if (widget.onTap == null && widget.onTapOutside == null) return;
     final regions = widget.regions;
     if (regions.isEmpty) return;
 
@@ -550,15 +560,20 @@ class _SvgViewState extends State<_SvgView> {
 
     // Iterate regions in reverse render order to respect z-order (topmost first).
     final regionList = regions.toList();
+    var isHandled = false;
     for (var i = regionList.length - 1; i >= 0; i--) {
       final selector = regionList[i].selector;
-      if (selector == null) continue;
+      if (selector == null || selector.type != InteractiveType.touchable) continue;
       final svgBounds = bounds[selector];
       if (svgBounds == null) continue;
       if (svgBounds.contains(touchPosition)) {
+        isHandled = true;
         widget.onTap?.call(selector);
         break;
       }
+    }
+    if(!isHandled) {
+      widget.onTapOutside?.call();
     }
   }
 }
