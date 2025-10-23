@@ -6,6 +6,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:path_drawing/path_drawing.dart';
+import 'package:vector_math/vector_math_64.dart' as v;
 import 'package:xml/xml.dart';
 
 /// Parses a single SVG group/element and composes a union [Path] suitable for hit-testing,
@@ -482,8 +483,8 @@ Path scaleBounds(
     }
 
     final scaleMatrix = Matrix4.identity()
-      ..translateByDouble(translateX, translateY, 0 , 0)
-      ..scaleByDouble(scaleX, scaleY, 1, 0);
+      ..translateByVector3(v.Vector3(translateX, translateY, 0))
+      ..scaleByVector3(v.Vector3(scaleX, scaleY, 1));
     return path.transform(scaleMatrix.storage);
   }
   return path;
