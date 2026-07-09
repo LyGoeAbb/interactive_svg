@@ -523,8 +523,9 @@ class _SvgViewState extends State<_SvgView> {
                   if (widget.interactiveBuilder != null) {
                     return widget.interactiveBuilder!(
                       context,
-                      () => _buildSvg(selector.id, e.svg),
+                      (svg) => _buildSvg(selector.id, svg),
                       SvgRegionsDetails(
+                        svg: e.svg,
                         selector: selector,
                         bounds: widget.lazyBounds.data[selector],
                       ),

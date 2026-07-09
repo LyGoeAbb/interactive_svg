@@ -120,11 +120,11 @@ class _ToothBoardState extends State<ToothBoard> {
                     label: s.originId,
                     bounds: details.bounds!.getVisibleBounds(),
                   ),
-                  child: builder(),
+                  child: builder(details.svg),
                 );
               }
             }
-            return builder();
+            return builder(details.svg);
           }(),
         ),
         markerBuilder: (context) {

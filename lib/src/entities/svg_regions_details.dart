@@ -19,6 +19,7 @@ import '../../interactive_svg.dart';
 class SvgRegionsDetails {
   /// Create a details object associating [selector] with optional [bounds].
   SvgRegionsDetails({
+    required this.svg,
     required this.bounds,
     required this.selector,
   });
@@ -29,7 +30,10 @@ class SvgRegionsDetails {
   /// The computed bounds (may be null until layout/bounds calculation completes).
   final SvgBounds? bounds;
 
+  /// The original svg that is displayed in this region
+  final String svg;
+
   @override
   String toString() =>
-      'SvgRegionsDetails{selector: $selector, bounds: $bounds}';
+      'SvgRegionsDetails{selector: $selector, bounds: $bounds, svg: $svg}';
 }
