@@ -61,6 +61,7 @@ import 'widget/size_reporter.dart';
 /// - [parserDelegate]: The parser delegate that extracts regions from the SVG.
 /// - [interactiveBuilder]: Optional builder for customizing each interactive region.
 /// - [onTap]: Callback when a touchable region is tapped.
+/// - [onTap]: Callback when a touchable region is secondary tapped.
 /// - [fit], [alignment]: Control SVG layout.
 /// - [errorBuilder], [placeholderBuilder]: Custom error/placeholder widgets.
 class InteractiveSvgView extends StatefulWidget {
@@ -72,7 +73,9 @@ class InteractiveSvgView extends StatefulWidget {
     this.errorBuilder,
     this.placeholderBuilder,
     this.onTap,
+    this.onSecondaryTap,
     this.onTapOutside,
+    this.onSecondaryTapOutside,
     this.fit = BoxFit.contain,
     this.alignment = Alignment.topLeft,
     this.markerBuilder,
@@ -94,7 +97,9 @@ class InteractiveSvgView extends StatefulWidget {
     WidgetBuilder? placeholderBuilder,
     InteractiveBuilder? interactiveBuilder,
     void Function(InteractiveSelector selector)? onTap,
+    void Function(InteractiveSelector selector)? onSecondaryTap,
     void Function()? onTapOutside,
+    void Function()? onSecondaryTapOutside,
     BoxFit fit = BoxFit.contain,
     Alignment alignment = Alignment.topLeft,
     MarkerBuilder? markerBuilder,
@@ -111,7 +116,9 @@ class InteractiveSvgView extends StatefulWidget {
         placeholderBuilder: placeholderBuilder,
         interactiveBuilder: interactiveBuilder,
         onTap: onTap,
+        onSecondaryTap: onSecondaryTap,
         onTapOutside: onTapOutside,
+        onSecondaryTapOutside: onSecondaryTapOutside,
         fit: fit,
         alignment: alignment,
         markerBuilder: markerBuilder,
@@ -136,6 +143,12 @@ class InteractiveSvgView extends StatefulWidget {
 
   /// Optional callback invoked when a tap occurs outside any touchable region.
   final void Function()? onTapOutside;
+
+  /// Optional onSecondaryTap callback invoked when a touchable [InteractiveSelector] is secondary tapped.
+  final void Function(InteractiveSelector selector)? onSecondaryTap;
+
+  /// Optional onSecondaryTapOutside callback invoked when a secondary tap occurs outside any touchable region.
+  final void Function()? onSecondaryTapOutside;
 
   /// How the SVG content should be inscribed into the available space.
   final BoxFit fit;
@@ -354,8 +367,10 @@ class _InteractiveSvgViewState extends State<InteractiveSvgView> {
                   // fit: widget.fit,
                   interactiveBuilder: widget.interactiveBuilder,
                   maskerBuilder: widget.markerBuilder,
-                  onTap: widget.onTap?.call,
+                  onTap: widget.onTap,
+                  onSecondaryTap: widget.onSecondaryTap,
                   onTapOutside: widget.onTapOutside,
+                  onSecondaryTapOutside: widget.onSecondaryTapOutside,
                 ),
               );
             },
@@ -383,6 +398,8 @@ class _SvgView extends StatefulWidget {
     this.onTapOutside,
     required this.lazyBounds,
     this.maskerBuilder,
+    this.onSecondaryTap,
+    this.onSecondaryTapOutside,
   });
 
   /// Background (non-interactive) SVG region that is rendered behind the interactive regions.
@@ -405,6 +422,12 @@ class _SvgView extends StatefulWidget {
 
   /// Optional onTapOutside handler invoked when a tap occurs outside any touchable region.
   final void Function()? onTapOutside;
+
+  /// Optional onSecondaryTap handler invoked when a touchable region is secondary tapped.
+  final void Function(InteractiveSelector selector)? onSecondaryTap;
+
+  /// Optional onSecondaryTapOutside handler invoked when a secondary tap occurs outside any touchable region.
+  final void Function()? onSecondaryTapOutside;
 
   /// Lazy bounds factory used to compute and provide bounds for touchable regions.
   final BoundsFactory lazyBounds;
@@ -452,6 +475,14 @@ class _SvgView extends StatefulWidget {
       ),
     );
     properties.add(
+      FlagProperty(
+        'hasOnSecondaryTap',
+        value: onSecondaryTap != null,
+        ifTrue: 'true',
+        ifFalse: 'false',
+      ),
+    );
+    properties.add(
       DiagnosticsProperty<BoundsFactory>(
         'lazyBounds',
         lazyBounds,
@@ -480,6 +511,7 @@ class _SvgViewState extends State<_SvgView> {
         },
         child: GestureDetector(
           onTapUp: onTap,
+          onSecondaryTapUp: onSecondaryTap,
           child: Stack(
             fit: StackFit.loose,
             children: [
@@ -521,7 +553,18 @@ class _SvgViewState extends State<_SvgView> {
   /// The function iterates regions in reverse order (topmost rendered region first),
   /// checks whether computed bounds contain the touch position and, if so, calls `widget.onTap`.
   void onTap(TapUpDetails details) {
-    if (widget.onTap == null && widget.onTapOutside == null) return;
+    tapHandler(details, widget.onTap, widget.onTapOutside);
+  }
+
+  void onSecondaryTap(TapUpDetails details) {
+    tapHandler(details, widget.onSecondaryTap, widget.onSecondaryTapOutside);
+  }
+
+  void tapHandler(
+      TapUpDetails details,
+      void Function(InteractiveSelector selector)? tapInsideCallback,
+      void Function()? tapOutsideCallback) {
+    if (tapInsideCallback == null && tapOutsideCallback == null) return;
     final regions = widget.regions;
     if (regions.isEmpty) return;
 
@@ -545,12 +588,12 @@ class _SvgViewState extends State<_SvgView> {
       if (svgBounds == null) continue;
       if (svgBounds.contains(touchPosition)) {
         isHandled = true;
-        widget.onTap?.call(selector);
+        tapInsideCallback?.call(selector);
         break;
       }
     }
     if (!isHandled) {
-      widget.onTapOutside?.call();
+      tapOutsideCallback?.call();
     }
   }
 }
