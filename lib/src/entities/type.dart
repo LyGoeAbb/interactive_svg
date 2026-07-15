@@ -19,20 +19,20 @@ import '../../interactive_svg.dart';
 ///   may be null on the initial build because bounds are computed after layout; when bounds become
 ///   available, use `shouldRebuildWhenBoundsCalculated` on the parent to request a rebuild so the
 ///   builder receives updated `details`.
-typedef InteractiveBuilder = Widget Function(
-  BuildContext context,
-  Widget Function(String svg) builder,
-  SvgRegionsDetails details,
-);
+// typedef InteractiveBuilder = Widget Function(
+//   BuildContext context,
+//   Widget Function(String svg) builder,
+//   SvgRegionsDetails details,
+// );
 
 /// Builder that produces additional overlay widgets (markers) to be placed on top of the SVG.
 ///
 /// The builder should return a list of widgets that will be inserted into the same stack as the SVG.
 /// Use this to render labels, guides or diagnostic overlays.
 /// - `context`: the build context.
-typedef MarkerBuilder = List<Widget> Function(
-  BuildContext context,
-);
+// typedef MarkerBuilder = List<Widget> Function(
+//   BuildContext context,
+// );
 
 /// Builder used to render an error state when SVG loading/parsing fails.
 ///

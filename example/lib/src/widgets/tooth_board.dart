@@ -109,39 +109,39 @@ class _ToothBoardState extends State<ToothBoard> {
             this.boundsData = boundsData;
           });
         },
-        interactiveBuilder: (context, builder, details) => Visibility(
-          visible: isVisible(details.selector),
-          child: () {
-            if (details.selector is TeethInteractiveSelector) {
-              final s = details.selector as TeethInteractiveSelector;
-              if (s.group == TeethIds.teethActive && details.bounds != null) {
-                return CustomPaint(
-                  foregroundPainter: LabelPainter(
-                    label: s.originId,
-                    bounds: details.bounds!.getVisibleBounds(),
-                  ),
-                  child: builder(details.svg),
-                );
-              }
-            }
-            return builder(details.svg);
-          }(),
-        ),
-        markerBuilder: (context) {
-          if (widget.showTouchableBounds && (boundsData?.isNotEmpty ?? false)) {
-            return [
-              Positioned.fill(
-                child: CustomPaint(
-                  foregroundPainter: BoundsTestPainter(
-                    boundsData: boundsData!,
-                    boundsColor: Colors.red,
-                  ),
-                ),
-              ),
-            ];
-          }
-          return [];
-        },
+        // interactiveBuilder: (context, builder, details) => Visibility(
+        //   visible: isVisible(details.selector),
+        //   child: () {
+        //     if (details.selector is TeethInteractiveSelector) {
+        //       final s = details.selector as TeethInteractiveSelector;
+        //       if (s.group == TeethIds.teethActive && details.bounds != null) {
+        //         return CustomPaint(
+        //           foregroundPainter: LabelPainter(
+        //             label: s.originId,
+        //             bounds: details.bounds!.getVisibleBounds(),
+        //           ),
+        //           child: builder(details.svg),
+        //         );
+        //       }
+        //     }
+        //     return builder(details.svg);
+        //   }(),
+        // ),
+        // markerBuilder: (context) {
+        //   if (widget.showTouchableBounds && (boundsData?.isNotEmpty ?? false)) {
+        //     return [
+        //       Positioned.fill(
+        //         child: CustomPaint(
+        //           foregroundPainter: BoundsTestPainter(
+        //             boundsData: boundsData!,
+        //             boundsColor: Colors.red,
+        //           ),
+        //         ),
+        //       ),
+        //     ];
+        //   }
+        //   return [];
+        // },
       );
 
   bool isVisible(InteractiveSelector selector) => switch (selector) {

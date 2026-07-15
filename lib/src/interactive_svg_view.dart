@@ -12,7 +12,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/svg.dart';
 
 import '../interactive_svg.dart';
-import 'interactive_parser.dart';
 import 'lazy_bound_factory.dart';
 import 'widget/size_reporter.dart';
 
@@ -23,10 +22,6 @@ import 'widget/size_reporter.dart';
 /// `interactiveBuilder` to receive taps through transparent SVG areas. The flutter_svg renderer does not
 /// forward pointer events through transparent pixels, so pointer events will not reliably reach widgets
 /// layered beneath the SVG content.
-///
-/// InteractiveSvgView performs its own hit testing and dispatches taps via the [onTap] callback.
-/// Use [interactiveBuilder] only to decorate or augment region widgets (e.g. add visual highlights,
-/// overlays, labels). The builder signature receives (BuildContext, Widget regionWidget, SvgRegionsDetails details).
 ///
 /// Notes about SvgRegionsDetails:
 /// - details.selector: the InteractiveSelector associated with the region.
@@ -59,7 +54,6 @@ import 'widget/size_reporter.dart';
 ///
 /// Parameters:
 /// - [parserDelegate]: The parser delegate that extracts regions from the SVG.
-/// - [interactiveBuilder]: Optional builder for customizing each interactive region.
 /// - [onTap]: Callback when a touchable region is tapped.
 /// - [onTap]: Callback when a touchable region is secondary tapped.
 /// - [fit], [alignment]: Control SVG layout.
@@ -69,7 +63,6 @@ class InteractiveSvgView extends StatefulWidget {
   const InteractiveSvgView({
     super.key,
     required this.parserDelegate,
-    this.interactiveBuilder,
     this.errorBuilder,
     this.placeholderBuilder,
     this.onTap,
@@ -78,7 +71,6 @@ class InteractiveSvgView extends StatefulWidget {
     this.onSecondaryTapOutside,
     this.fit = BoxFit.contain,
     this.alignment = Alignment.topLeft,
-    this.markerBuilder,
     this.onBoundsCalculated,
     this.shouldRebuildWhenBoundsCalculated = false,
   });
@@ -87,7 +79,6 @@ class InteractiveSvgView extends StatefulWidget {
   ///
   /// [svgAssets] - asset path to the SVG file.
   /// [selectors] - optional list of selectors to parse and render as separate regions.
-  /// [interactiveBuilder] - builder used to wrap each region (e.g. with gesture detectors).
   /// [onBoundsCalculated] - called when region bounds are computed.
   factory InteractiveSvgView.fromAssets({
     Key? key,
@@ -95,14 +86,12 @@ class InteractiveSvgView extends StatefulWidget {
     Iterable<InteractiveSelector> selectors = const [],
     ErrorBuilder? errorBuilder,
     WidgetBuilder? placeholderBuilder,
-    InteractiveBuilder? interactiveBuilder,
     void Function(InteractiveSelector selector)? onTap,
     void Function(InteractiveSelector selector)? onSecondaryTap,
     void Function()? onTapOutside,
     void Function()? onSecondaryTapOutside,
     BoxFit fit = BoxFit.contain,
     Alignment alignment = Alignment.topLeft,
-    MarkerBuilder? markerBuilder,
     void Function(BoundsList boundsData)? onBoundsCalculated,
     bool shouldRebuildWhenBoundsCalculated = false,
   }) =>
@@ -114,14 +103,12 @@ class InteractiveSvgView extends StatefulWidget {
         ),
         errorBuilder: errorBuilder,
         placeholderBuilder: placeholderBuilder,
-        interactiveBuilder: interactiveBuilder,
         onTap: onTap,
         onSecondaryTap: onSecondaryTap,
         onTapOutside: onTapOutside,
         onSecondaryTapOutside: onSecondaryTapOutside,
         fit: fit,
         alignment: alignment,
-        markerBuilder: markerBuilder,
         onBoundsCalculated: onBoundsCalculated,
         shouldRebuildWhenBoundsCalculated: shouldRebuildWhenBoundsCalculated,
       );
@@ -134,9 +121,6 @@ class InteractiveSvgView extends StatefulWidget {
 
   /// Optional placeholder builder shown while loading.
   final WidgetBuilder? placeholderBuilder;
-
-  /// Optional builder for wrapping each region widget. Useful for adding gestures or overlays.
-  final InteractiveBuilder? interactiveBuilder;
 
   /// Optional callback invoked when a touchable [InteractiveSelector] is tapped.
   final void Function(InteractiveSelector selector)? onTap;
@@ -155,9 +139,6 @@ class InteractiveSvgView extends StatefulWidget {
 
   /// Alignment used when rendering the SVG content.
   final Alignment alignment;
-
-  /// Optional marker builder: used to overlay markers or additional widgets on top of the SVG.
-  final MarkerBuilder? markerBuilder;
 
   /// Callback invoked when bounds for touchable regions are calculated.
   final void Function(BoundsList boundsData)? onBoundsCalculated;
@@ -183,14 +164,6 @@ class InteractiveSvgView extends StatefulWidget {
     properties.add(DiagnosticsProperty<Alignment>('alignment', alignment));
     properties.add(
       FlagProperty(
-        'hasInteractiveBuilder',
-        value: interactiveBuilder != null,
-        ifTrue: 'true',
-        ifFalse: 'false',
-      ),
-    );
-    properties.add(
-      FlagProperty(
         'hasOnTap',
         value: onTap != null,
         ifTrue: 'true',
@@ -204,9 +177,6 @@ class InteractiveSvgView extends StatefulWidget {
         ifTrue: 'true',
         ifFalse: 'false',
       ),
-    );
-    properties.add(
-      ObjectFlagProperty<MarkerBuilder?>.has('markerBuilder', markerBuilder),
     );
     properties.add(
       ObjectFlagProperty<ErrorBuilder?>.has('errorBuilder', errorBuilder),
@@ -225,6 +195,18 @@ class InteractiveSvgView extends StatefulWidget {
     );
     properties.add(
         ObjectFlagProperty<void Function()?>.has('onTapOutside', onTapOutside));
+    properties.add(
+      ObjectFlagProperty<void Function(InteractiveSelector selector)?>.has(
+        'onSecondaryTap',
+        onSecondaryTap,
+      ),
+    );
+    properties.add(
+      ObjectFlagProperty<void Function()?>.has(
+        'onSecondaryTapOutside',
+        onSecondaryTapOutside,
+      ),
+    );
   }
 }
 
@@ -351,7 +333,7 @@ class _InteractiveSvgViewState extends State<InteractiveSvgView> {
                 child: _SvgView(
                   key: _sizedKey,
                   lazyBounds: boundsFactory,
-                  background: data[null],
+                  background: data[null]!,
                   alignment: Alignment.topLeft,
                   fit: BoxFit.contain,
                   regions: data.entries
@@ -361,12 +343,6 @@ class _InteractiveSvgViewState extends State<InteractiveSvgView> {
                             element.value.selector != null,
                       )
                       .map((e) => e.value),
-
-                  /// FittedBox handled UI scale and fit.
-                  // alignment: widget.alignment,
-                  // fit: widget.fit,
-                  interactiveBuilder: widget.interactiveBuilder,
-                  maskerBuilder: widget.markerBuilder,
                   onTap: widget.onTap,
                   onSecondaryTap: widget.onSecondaryTap,
                   onTapOutside: widget.onTapOutside,
@@ -393,17 +369,15 @@ class _SvgView extends StatefulWidget {
     required this.regions,
     this.alignment = Alignment.topLeft,
     this.fit = BoxFit.contain,
-    this.interactiveBuilder,
     this.onTap,
     this.onTapOutside,
     required this.lazyBounds,
-    this.maskerBuilder,
     this.onSecondaryTap,
     this.onSecondaryTapOutside,
   });
 
   /// Background (non-interactive) SVG region that is rendered behind the interactive regions.
-  final SvgRegion? background;
+  final SvgRegion background;
 
   /// Iterable of parsed SVG regions (each should carry an [InteractiveSelector] on its metadata).
   final Iterable<SvgRegion> regions;
@@ -413,9 +387,6 @@ class _SvgView extends StatefulWidget {
 
   /// Fit mode applied to each [SvgPicture].
   final BoxFit fit;
-
-  /// Optional builder to wrap each region (same as [InteractiveSvgView.interactiveBuilder]).
-  final InteractiveBuilder? interactiveBuilder;
 
   /// Optional onTap handler invoked when a touchable region is tapped.
   final void Function(InteractiveSelector selector)? onTap;
@@ -431,9 +402,6 @@ class _SvgView extends StatefulWidget {
 
   /// Lazy bounds factory used to compute and provide bounds for touchable regions.
   final BoundsFactory lazyBounds;
-
-  /// Optional masker/overlay builder.
-  final MarkerBuilder? maskerBuilder;
 
   @override
   State<_SvgView> createState() => _SvgViewState();
@@ -460,14 +428,6 @@ class _SvgView extends StatefulWidget {
     properties.add(DiagnosticsProperty<BoxFit>('fit', fit));
     properties.add(
       FlagProperty(
-        'hasInteractiveBuilder',
-        value: interactiveBuilder != null,
-        ifTrue: 'true',
-        ifFalse: 'false',
-      ),
-    );
-    properties.add(
-      FlagProperty(
         'hasOnTap',
         value: onTap != null,
         ifTrue: 'true',
@@ -490,14 +450,6 @@ class _SvgView extends StatefulWidget {
       ),
     );
     properties.add(
-      FlagProperty(
-        'hasMaskerBuilder',
-        value: maskerBuilder != null,
-        ifTrue: 'true',
-        ifFalse: 'false',
-      ),
-    );
-    properties.add(
         ObjectFlagProperty<void Function()?>.has('onTapOutside', onTapOutside));
   }
 }
@@ -512,32 +464,7 @@ class _SvgViewState extends State<_SvgView> {
         child: GestureDetector(
           onTapUp: onTap,
           onSecondaryTapUp: onSecondaryTap,
-          child: Stack(
-            fit: StackFit.loose,
-            children: [
-              if (widget.background != null)
-                _buildSvg(null, widget.background!.svg),
-              ...widget.regions.map(
-                (e) {
-                  final selector = e.selector!;
-                  if (widget.interactiveBuilder != null) {
-                    return widget.interactiveBuilder!(
-                      context,
-                      (svg) => _buildSvg(selector.id, svg),
-                      SvgRegionsDetails(
-                        svg: e.svg,
-                        selector: selector,
-                        bounds: widget.lazyBounds.data[selector],
-                      ),
-                    );
-                  }
-                  return _buildSvg(selector.id, e.svg);
-                },
-              ),
-              if (widget.maskerBuilder != null)
-                ...widget.maskerBuilder!(context),
-            ],
-          ),
+          child: _buildSvg(null, widget.background.svg),
         ),
       );
 
