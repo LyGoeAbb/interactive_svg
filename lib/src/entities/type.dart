@@ -9,21 +9,13 @@ import 'package:flutter/widgets.dart';
 
 import '../../interactive_svg.dart';
 
-/// Builder used to wrap or decorate a parsed SVG region.
-///
-/// - `context`: the build context.
-/// - `builder`: the Widget that renders the SVG fragment for the region given the svg. 
-///   already configured with fit/alignment. If the user chooses to modify,
-///   the svg the rendering might not be perfect.
-/// - `details`: metadata about the region (selector and computed bounds). Note that `details.bounds`
-///   may be null on the initial build because bounds are computed after layout; when bounds become
-///   available, use `shouldRebuildWhenBoundsCalculated` on the parent to request a rebuild so the
-///   builder receives updated `details`.
-// typedef InteractiveBuilder = Widget Function(
-//   BuildContext context,
-//   Widget Function(String svg) builder,
-//   SvgRegionsDetails details,
-// );
+/// Builder used to decorate a parsed SVG region.
+/// 
+/// It returns an iterable of painter that will paint on top or below the svg
+typedef PainterBuilder = Iterable<CustomPainter> Function(
+  BuildContext context,
+  SvgRegionsDetails details,
+);
 
 /// Builder that produces additional overlay widgets (markers) to be placed on top of the SVG.
 ///

@@ -69,6 +69,8 @@ class InteractiveSvgView extends StatefulWidget {
     this.onSecondaryTap,
     this.onTapOutside,
     this.onSecondaryTapOutside,
+    this.foregroundPainterBuilder,
+    this.backgroundPainterBuilder,
     this.fit = BoxFit.contain,
     this.alignment = Alignment.topLeft,
     this.onBoundsCalculated,
@@ -90,6 +92,8 @@ class InteractiveSvgView extends StatefulWidget {
     void Function(InteractiveSelector selector)? onSecondaryTap,
     void Function()? onTapOutside,
     void Function()? onSecondaryTapOutside,
+    PainterBuilder? foregroundPainterBuilder,
+    PainterBuilder? backgroundPainterBuilder,
     BoxFit fit = BoxFit.contain,
     Alignment alignment = Alignment.topLeft,
     void Function(BoundsList boundsData)? onBoundsCalculated,
@@ -107,6 +111,8 @@ class InteractiveSvgView extends StatefulWidget {
         onSecondaryTap: onSecondaryTap,
         onTapOutside: onTapOutside,
         onSecondaryTapOutside: onSecondaryTapOutside,
+        foregroundPainterBuilder: foregroundPainterBuilder,
+        backgroundPainterBuilder: backgroundPainterBuilder,
         fit: fit,
         alignment: alignment,
         onBoundsCalculated: onBoundsCalculated,
@@ -133,6 +139,12 @@ class InteractiveSvgView extends StatefulWidget {
 
   /// Optional onSecondaryTapOutside callback invoked when a secondary tap occurs outside any touchable region.
   final void Function()? onSecondaryTapOutside;
+
+  /// Optional builder for painting things on top of the svg. The builder will be called for all region of the svg.
+  final PainterBuilder? foregroundPainterBuilder;
+
+  /// Optional builder for painting things on top of the svg. The builder will be called for all region of the svg.
+  final PainterBuilder? backgroundPainterBuilder;
 
   /// How the SVG content should be inscribed into the available space.
   final BoxFit fit;
@@ -194,7 +206,11 @@ class InteractiveSvgView extends StatefulWidget {
       ),
     );
     properties.add(
-        ObjectFlagProperty<void Function()?>.has('onTapOutside', onTapOutside));
+      ObjectFlagProperty<void Function()?>.has(
+        'onTapOutside',
+        onTapOutside,
+      ),
+    );
     properties.add(
       ObjectFlagProperty<void Function(InteractiveSelector selector)?>.has(
         'onSecondaryTap',
@@ -205,6 +221,18 @@ class InteractiveSvgView extends StatefulWidget {
       ObjectFlagProperty<void Function()?>.has(
         'onSecondaryTapOutside',
         onSecondaryTapOutside,
+      ),
+    );
+    properties.add(
+      ObjectFlagProperty<PainterBuilder?>.has(
+        'foregroundPainterBuilder',
+        foregroundPainterBuilder,
+      ),
+    );
+    properties.add(
+      ObjectFlagProperty<PainterBuilder?>.has(
+        'backgroundPainterBuilder',
+        backgroundPainterBuilder,
       ),
     );
   }
@@ -347,6 +375,8 @@ class _InteractiveSvgViewState extends State<InteractiveSvgView> {
                   onSecondaryTap: widget.onSecondaryTap,
                   onTapOutside: widget.onTapOutside,
                   onSecondaryTapOutside: widget.onSecondaryTapOutside,
+                  foregroundPainterBuilder: widget.foregroundPainterBuilder,
+                  backgroundPainterBuilder: widget.backgroundPainterBuilder,
                 ),
               );
             },
@@ -374,6 +404,8 @@ class _SvgView extends StatefulWidget {
     required this.lazyBounds,
     this.onSecondaryTap,
     this.onSecondaryTapOutside,
+    this.foregroundPainterBuilder,
+    this.backgroundPainterBuilder,
   });
 
   /// Background (non-interactive) SVG region that is rendered behind the interactive regions.
@@ -399,6 +431,12 @@ class _SvgView extends StatefulWidget {
 
   /// Optional onSecondaryTapOutside handler invoked when a secondary tap occurs outside any touchable region.
   final void Function()? onSecondaryTapOutside;
+
+  /// Optional builder for painting things on top of the svg. The builder will be called for all region of the svg.
+  final PainterBuilder? foregroundPainterBuilder;
+
+  /// Optional builder for painting things on top of the svg. The builder will be called for all region of the svg.
+  final PainterBuilder? backgroundPainterBuilder;
 
   /// Lazy bounds factory used to compute and provide bounds for touchable regions.
   final BoundsFactory lazyBounds;
@@ -450,7 +488,29 @@ class _SvgView extends StatefulWidget {
       ),
     );
     properties.add(
-        ObjectFlagProperty<void Function()?>.has('onTapOutside', onTapOutside));
+      ObjectFlagProperty<void Function()?>.has(
+        'onTapOutside',
+        onTapOutside,
+      ),
+    );
+    properties.add(
+      ObjectFlagProperty<void Function()?>.has(
+        'onSecondaryTapOutside',
+        onSecondaryTapOutside,
+      ),
+    );
+    properties.add(
+      ObjectFlagProperty<PainterBuilder?>.has(
+        'foregroundPainterBuilder',
+        foregroundPainterBuilder,
+      ),
+    );
+    properties.add(
+      ObjectFlagProperty<PainterBuilder?>.has(
+        'backgroundPainterBuilder',
+        backgroundPainterBuilder,
+      ),
+    );
   }
 }
 
@@ -462,10 +522,43 @@ class _SvgViewState extends State<_SvgView> {
               .resolve(size, alignment: widget.alignment, fit: widget.fit);
         },
         child: GestureDetector(
-          onTapUp: onTap,
-          onSecondaryTapUp: onSecondaryTap,
-          child: _buildSvg(null, widget.background.svg),
-        ),
+            onTapUp: onTap,
+            onSecondaryTapUp: onSecondaryTap,
+            child: CustomPaint(
+              painter: MultiPainter(
+                painters: widget.regions
+                    .expand(
+                      (e) =>
+                          widget.backgroundPainterBuilder?.call(
+                            context,
+                            SvgRegionsDetails(
+                              svg: e.svg,
+                              bounds: widget.lazyBounds.data[e.selector!],
+                              selector: e.selector!,
+                            ),
+                          ) ??
+                          <CustomPainter>[],
+                    )
+                    .toList(),
+              ),
+              foregroundPainter: MultiPainter(
+                painters: widget.regions
+                    .expand(
+                      (e) =>
+                          widget.foregroundPainterBuilder?.call(
+                            context,
+                            SvgRegionsDetails(
+                              svg: e.svg,
+                              bounds: widget.lazyBounds.data[e.selector!],
+                              selector: e.selector!,
+                            ),
+                          ) ??
+                          <CustomPainter>[],
+                    )
+                    .toList(),
+              ),
+              child: _buildSvg(null, widget.background.svg),
+            )),
       );
 
   /// Builds an [SvgPicture] from raw SVG string [data]. If [key] is null, a background key is used.
