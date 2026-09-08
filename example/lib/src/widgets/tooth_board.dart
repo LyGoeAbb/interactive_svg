@@ -99,7 +99,7 @@ class _ToothBoardState extends State<ToothBoard> {
         placeholderBuilder: (context) => const Center(
           child: CircularProgressIndicator(),
         ),
-        onTap: (selector) {
+        onTap: (details, selector) {
           if (selector is TeethInteractiveSelector) {
             onTap(selector);
           }

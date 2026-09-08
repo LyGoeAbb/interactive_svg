@@ -88,10 +88,10 @@ class InteractiveSvgView extends StatefulWidget {
     Iterable<InteractiveSelector> selectors = const [],
     ErrorBuilder? errorBuilder,
     WidgetBuilder? placeholderBuilder,
-    void Function(InteractiveSelector selector)? onTap,
-    void Function(InteractiveSelector selector)? onSecondaryTap,
-    void Function()? onTapOutside,
-    void Function()? onSecondaryTapOutside,
+    void Function(TapUpDetails details, InteractiveSelector selector)? onTap,
+    void Function(TapUpDetails details, InteractiveSelector selector)? onSecondaryTap,
+    void Function(TapUpDetails details, )? onTapOutside,
+    void Function(TapUpDetails details, )? onSecondaryTapOutside,
     PainterBuilder? foregroundPainterBuilder,
     PainterBuilder? backgroundPainterBuilder,
     BoxFit fit = BoxFit.contain,
@@ -129,16 +129,16 @@ class InteractiveSvgView extends StatefulWidget {
   final WidgetBuilder? placeholderBuilder;
 
   /// Optional callback invoked when a touchable [InteractiveSelector] is tapped.
-  final void Function(InteractiveSelector selector)? onTap;
+  final void Function(TapUpDetails details, InteractiveSelector selector)? onTap;
 
   /// Optional callback invoked when a tap occurs outside any touchable region.
-  final void Function()? onTapOutside;
+  final void Function(TapUpDetails details, )? onTapOutside;
 
   /// Optional onSecondaryTap callback invoked when a touchable [InteractiveSelector] is secondary tapped.
-  final void Function(InteractiveSelector selector)? onSecondaryTap;
+  final void Function(TapUpDetails details, InteractiveSelector selector)? onSecondaryTap;
 
   /// Optional onSecondaryTapOutside callback invoked when a secondary tap occurs outside any touchable region.
-  final void Function()? onSecondaryTapOutside;
+  final void Function(TapUpDetails details, )? onSecondaryTapOutside;
 
   /// Optional builder for painting things on top of the svg. The builder will be called for all region of the svg.
   final PainterBuilder? foregroundPainterBuilder;
@@ -206,19 +206,19 @@ class InteractiveSvgView extends StatefulWidget {
       ),
     );
     properties.add(
-      ObjectFlagProperty<void Function()?>.has(
+      ObjectFlagProperty<void Function(TapUpDetails details, )?>.has(
         'onTapOutside',
         onTapOutside,
       ),
     );
     properties.add(
-      ObjectFlagProperty<void Function(InteractiveSelector selector)?>.has(
+      ObjectFlagProperty<void Function(TapUpDetails details, InteractiveSelector selector)?>.has(
         'onSecondaryTap',
         onSecondaryTap,
       ),
     );
     properties.add(
-      ObjectFlagProperty<void Function()?>.has(
+      ObjectFlagProperty<void Function(TapUpDetails details, )?>.has(
         'onSecondaryTapOutside',
         onSecondaryTapOutside,
       ),
@@ -421,16 +421,16 @@ class _SvgView extends StatefulWidget {
   final BoxFit fit;
 
   /// Optional onTap handler invoked when a touchable region is tapped.
-  final void Function(InteractiveSelector selector)? onTap;
+  final void Function(TapUpDetails details, InteractiveSelector selector)? onTap;
 
   /// Optional onTapOutside handler invoked when a tap occurs outside any touchable region.
-  final void Function()? onTapOutside;
+  final void Function(TapUpDetails details)? onTapOutside;
 
   /// Optional onSecondaryTap handler invoked when a touchable region is secondary tapped.
-  final void Function(InteractiveSelector selector)? onSecondaryTap;
+  final void Function(TapUpDetails details, InteractiveSelector selector)? onSecondaryTap;
 
   /// Optional onSecondaryTapOutside handler invoked when a secondary tap occurs outside any touchable region.
-  final void Function()? onSecondaryTapOutside;
+  final void Function(TapUpDetails details)? onSecondaryTapOutside;
 
   /// Optional builder for painting things on top of the svg. The builder will be called for all region of the svg.
   final PainterBuilder? foregroundPainterBuilder;
@@ -488,13 +488,13 @@ class _SvgView extends StatefulWidget {
       ),
     );
     properties.add(
-      ObjectFlagProperty<void Function()?>.has(
+      ObjectFlagProperty<void Function(TapUpDetails details)?>.has(
         'onTapOutside',
         onTapOutside,
       ),
     );
     properties.add(
-      ObjectFlagProperty<void Function()?>.has(
+      ObjectFlagProperty<void Function(TapUpDetails details)?>.has(
         'onSecondaryTapOutside',
         onSecondaryTapOutside,
       ),
@@ -583,8 +583,8 @@ class _SvgViewState extends State<_SvgView> {
 
   void tapHandler(
       TapUpDetails details,
-      void Function(InteractiveSelector selector)? tapInsideCallback,
-      void Function()? tapOutsideCallback) {
+      void Function(TapUpDetails details, InteractiveSelector selector)? tapInsideCallback,
+      void Function(TapUpDetails details)? tapOutsideCallback) {
     if (tapInsideCallback == null && tapOutsideCallback == null) return;
     final regions = widget.regions;
     if (regions.isEmpty) return;
@@ -609,12 +609,12 @@ class _SvgViewState extends State<_SvgView> {
       if (svgBounds == null) continue;
       if (svgBounds.contains(touchPosition)) {
         isHandled = true;
-        tapInsideCallback?.call(selector);
+        tapInsideCallback?.call(details, selector);
         break;
       }
     }
     if (!isHandled) {
-      tapOutsideCallback?.call();
+      tapOutsideCallback?.call(details);
     }
   }
 }
